@@ -162,7 +162,11 @@ export default function App() {
             <button className="primary" onClick={handleSend} disabled={sending}>
               {sending ? "Envoi..." : "Envoyer"}
             </button>
-            <button className="secondary" onClick={handleApply} disabled={!assistantMessage || applying}>
+            <button
+              className="secondary"
+              onClick={handleApply}
+              disabled={!assistantMessage || applying}
+            >
               {applying ? "Application..." : "Appliquer à la sélection"}
             </button>
             <button className="ghost" onClick={handleUndo}>

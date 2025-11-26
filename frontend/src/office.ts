@@ -1,10 +1,19 @@
 /// <reference types="office-js" />
 
+function getPowerPoint() {
+  const ppt = (window as any).PowerPoint;
+  if (!ppt || typeof ppt.run !== "function") {
+    throw new Error("L'API PowerPoint n'est pas prête. Ouvre le taskpane dans PowerPoint et attends quelques secondes.");
+  }
+  return ppt;
+}
+
 /**
  * Read the selected shape's text in PowerPoint.
  */
 export async function getSelectedShapeText(): Promise<{ shapeId: string | null; text: string }> {
-  return PowerPoint.run(async (context) => {
+  const PowerPoint = getPowerPoint();
+  return PowerPoint.run(async (context: any) => {
     const selectedShapes = context.presentation.getSelectedShapes();
     selectedShapes.load("items");
     await context.sync();
@@ -28,7 +37,8 @@ export async function getSelectedShapeText(): Promise<{ shapeId: string | null; 
  * Replace the selected shape's text in PowerPoint.
  */
 export async function setSelectedShapeText(newText: string): Promise<{ shapeId: string | null }> {
-  return PowerPoint.run(async (context) => {
+  const PowerPoint = getPowerPoint();
+  return PowerPoint.run(async (context: any) => {
     const selectedShapes = context.presentation.getSelectedShapes();
     selectedShapes.load("items");
     await context.sync();
