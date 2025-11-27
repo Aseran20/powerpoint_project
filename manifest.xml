@@ -38,6 +38,34 @@
             <ov:Title resid="residTaskpaneTitle" />
             <ov:SupportsPinning>true</ov:SupportsPinning>
           </ov:ExtensionPoint>
+          <ov:ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <ov:CustomTab id="TabHome">
+              <ov:Group id="CopilotGroup">
+                <ov:Label resid="residGroupName"/>
+                <ov:Icon>
+                  <bt:Image size="16" resid="icon16" />
+                  <bt:Image size="32" resid="icon32" />
+                  <bt:Image size="80" resid="icon80" />
+                </ov:Icon>
+                <ov:Control xsi:type="Button" id="TaskpaneButton">
+                  <ov:Label resid="residTaskpaneButtonLabel" />
+                  <ov:Supertip>
+                    <ov:Title resid="residTaskpaneButtonLabel" />
+                    <ov:Description resid="residTaskpaneButtonDesc" />
+                  </ov:Supertip>
+                  <ov:Icon>
+                    <bt:Image size="16" resid="icon16" />
+                    <bt:Image size="32" resid="icon32" />
+                    <bt:Image size="80" resid="icon80" />
+                  </ov:Icon>
+                  <ov:Action xsi:type="ShowTaskpane">
+                    <ov:TaskpaneId>ButtonId1</ov:TaskpaneId>
+                    <ov:SourceLocation resid="residTaskpaneUrl" />
+                  </ov:Action>
+                </ov:Control>
+              </ov:Group>
+            </ov:CustomTab>
+          </ov:ExtensionPoint>
         </ov:DesktopFormFactor>
       </ov:Host>
     </ov:Hosts>
@@ -50,10 +78,18 @@
       <bt:ShortStrings>
         <bt:String id="residTaskpaneTitle" DefaultValue="PPT Copilot" />
         <bt:String id="residGetStartedTitle" DefaultValue="PPT Copilot" />
+        <bt:String id="residGroupName" DefaultValue="PPT Copilot" />
+        <bt:String id="residTaskpaneButtonLabel" DefaultValue="Open Copilot" />
       </bt:ShortStrings>
       <bt:LongStrings>
         <bt:String id="residGetStartedDescription" DefaultValue="Open the taskpane to chat with Gemini 3 and apply text to the selected shape." />
+        <bt:String id="residTaskpaneButtonDesc" DefaultValue="Open the PPT Copilot taskpane to generate text." />
       </bt:LongStrings>
+      <bt:Images>
+        <bt:Image id="icon16" DefaultValue="https://via.placeholder.com/16" />
+        <bt:Image id="icon32" DefaultValue="https://via.placeholder.com/32" />
+        <bt:Image id="icon80" DefaultValue="https://via.placeholder.com/80" />
+      </bt:Images>
     </ov:Resources>
   </VersionOverrides>
 </OfficeApp>

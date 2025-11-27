@@ -17,7 +17,7 @@ MODEL_NAME = "gemini-3-pro-preview"
 load_dotenv()
 backend_env = Path(__file__).parent / ".env"
 if backend_env.exists():
-    load_dotenv(backend_env, override=False)
+    load_dotenv(backend_env, override=True)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ppt-copilot")
@@ -79,9 +79,8 @@ def chat(req: ChatRequest):
         response = client.models.generate_content(
             model=MODEL_NAME,
             contents=contents,
-            system_instruction={"parts": [{"text": SYSTEM_PROMPT}]},
-            generation_config={
-                "thinking_level": "high",
+            config={
+                "system_instruction": SYSTEM_PROMPT,
                 "max_output_tokens": 512,
                 "temperature": 1.0,
             },
@@ -112,4 +111,28 @@ def chat(req: ChatRequest):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    ssl_keyfile = None
+    ssl_certfile = None
+
+    # Check for Office Add-in dev certs
+    # Usually in ~/.office-addin-dev-certs/
+    home_dir = Path.home()
+    cert_dir = home_dir / ".office-addin-dev-certs"
+    possible_key = cert_dir / "localhost.key"
+    possible_cert = cert_dir / "localhost.crt"
+
+    if possible_key.exists() and possible_cert.exists():
+        logger.info(f"Found SSL certs at {cert_dir}")
+        ssl_keyfile = str(possible_key)
+        ssl_certfile = str(possible_cert)
+    else:
+        logger.warning("No SSL certs found. Running in HTTP mode (might fail in Web Office).")
+
+    uvicorn.run(
+        "backend.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+        ssl_keyfile=ssl_keyfile,
+        ssl_certfile=ssl_certfile,
+    )

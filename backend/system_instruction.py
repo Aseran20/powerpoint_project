@@ -46,8 +46,9 @@ Formatting rules (very important)
     - "2. ..."
     - etc., one item per line.
 - Bold / emphasis
-  - When the user asks to highlight or emphasize elements, use Markdown-style bold with **double asterisks** around the text to be bolded, for example: La societe **Bubbles Creches**.
-  - Do not use any other markdown formatting (no italics, no links) unless the user explicitly requires it.
+  - Do NOT use Markdown bold (**text**). PowerPoint does not support it.
+  - Use CAPITALIZATION for emphasis if absolutely necessary, but sparingly.
+  - Do not use any other markdown formatting (no italics, no links).
 - Tables
   - Avoid tables unless the user explicitly asks for a table-like format.
   - If a table is required, use a simple text representation (for example pipe-separated), suitable for manual post-processing.
