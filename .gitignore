@@ -11,3 +11,8 @@ backend/.env
 frontend/node_modules/
 frontend/dist/
 frontend/.env.local
+
+ppt-copilot-addin/node_modules/
+ppt-copilot-addin/dist/
+ppt-copilot-addin/.env.local
+
