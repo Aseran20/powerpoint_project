@@ -16,3 +16,14 @@ ppt-copilot-addin/node_modules/
 ppt-copilot-addin/dist/
 ppt-copilot-addin/.env.local
 
+
+# ppt-copilot-v2
+ppt-copilot-v2/node_modules/
+ppt-copilot-v2/dist/
+ppt-copilot-v2/.env
+
+# Generic ignores (in case of other folders)
+node_modules/
+dist/
+.DS_Store
+*.log

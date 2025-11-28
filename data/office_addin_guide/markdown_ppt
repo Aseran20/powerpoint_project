@@ -1,0 +1,394 @@
+Parfait, on va le faire proprement: un vrai pipeline Markdown → texte + styles → shape PowerPoint, utilisable Web et Desktop.
+
+Je te donne un guide structuré, avec pseudo-code TypeScript que ton dev peut adapter.
+
+1. Objectif et principe
+
+Objectif concret
+Tu pars d’une string Markdown produite par Gemini, par exemple:
+
+# Titre principal
+
+Texte d’intro avec **gras** et *italique*.
+
+- Premier point
+- Deuxième point avec **emphase**
+
+
+Tu veux:
+
+Avoir dans la shape un texte "plat" sans syntaxe Markdown
+
+Appliquer:
+
+Gras / italique sur les bons segments
+
+Styles de titre sur les lignes #, ##, etc
+
+Bullets PowerPoint sur les listes
+
+Comme l’API PowerPoint ne sait pas "comprendre" du Markdown, tu dois:
+
+Parser le Markdown côté taskpane (JS/TS, hors Office API)
+
+Produire:
+
+plainText: texte final, avec les bons sauts de ligne
+
+styleSpans: liste de [start, length, style]
+
+bulletBlocks: plages de texte à transformer en liste à puces
+
+Dans PowerPoint.run, injecter plainText dans la shape puis appliquer les styles avec getSubstring + font + paragraphFormat.bulletFormat.visible 
+Microsoft Learn
++1
+
+2. Sous-ensemble de Markdown recommandé
+
+Pour garder un MVP robuste, je te conseille de supporter d’abord:
+
+Titres
+
+#, ##, ### mappés sur différentes tailles de police
+
+Gras
+
+**texte** ou __texte__
+
+Italique
+
+*texte* ou _texte_
+
+Listes à puces
+
+Lignes qui commencent par - ou *
+
+Paragraphes et sauts de ligne
+
+Une ligne vide = nouveau paragraphe
+
+Tu peux ignorer dans un premier temps:
+
+Listes numérotées
+
+Liens [texte](url)
+
+Images, tables
+
+3. Modèle de données pour le rendu dans PowerPoint
+
+Dans ton front (React + Webpack par exemple), définis quelques types:
+
+type HeadingLevel = 1 | 2 | 3
+
+interface StyleSpan {
+  start: number          // index dans plainText
+  length: number         // nombre de caractères
+  bold?: boolean
+  italic?: boolean
+  headingLevel?: HeadingLevel
+}
+
+interface BulletBlock {
+  start: number          // index du début du bloc de liste
+  length: number         // nombre de caractères du bloc
+}
+
+interface MarkdownFlattened {
+  text: string           // plainText final
+  spans: StyleSpan[]
+  bullets: BulletBlock[]
+}
+
+
+Idée clé
+
+Tu construis text de gauche à droite
+
+Tu maintiens un curseur cursor = longueur actuelle du text
+
+À chaque fois que tu ajoutes une portion de texte stylée, tu crées un StyleSpan avec start = cursorAvant et length = texteAjouté.length
+
+4. Parsing Markdown côté taskpane
+4.1. Choisir une librairie
+
+Par exemple marked:
+
+npm install marked
+
+
+Puis:
+
+import { marked } from "marked"
+
+
+marked.lexer(markdown) te retourne des tokens block (heading, paragraph, list, etc) avec des sous-tokens pour l’inline (strong, em, text, etc).
+
+4.2. Fonction principale de flatten
+import { Tokens, marked } from "marked"
+
+export function markdownToFlat(md: string): MarkdownFlattened {
+  const tokens = marked.lexer(md)
+
+  let text = ""
+  const spans: StyleSpan[] = []
+  const bullets: BulletBlock[] = []
+
+  let cursor = 0
+
+  function appendText(str: string): number {
+    text += str
+    const added = str.length
+    cursor += added
+    return added
+  }
+
+  function addSpan(length: number, style: Partial<StyleSpan>) {
+    if (length <= 0) return
+    spans.push({
+      start: cursor - length,
+      length,
+      ...style,
+    })
+  }
+
+  // Traitement des inline tokens (gras, italique, texte)
+  function walkInline(tokens: Tokens.Generic[]): void {
+    for (const token of tokens) {
+      if (token.type === "strong") {
+        const before = cursor
+        walkInline(token.tokens || [])
+        const spanLength = cursor - before
+        addSpan(spanLength, { bold: true })
+      } else if (token.type === "em") {
+        const before = cursor
+        walkInline(token.tokens || [])
+        const spanLength = cursor - before
+        addSpan(spanLength, { italic: true })
+      } else if (token.type === "text") {
+        appendText(token.text)
+      } else if (token.type === "space") {
+        appendText(" ")
+      } else {
+        // fallback: concaténer le texte brut
+        if ("raw" in token && typeof token.raw === "string") {
+          appendText(token.raw)
+        }
+      }
+    }
+  }
+
+  // Traitement des blocks
+  for (const token of tokens) {
+    switch (token.type) {
+      case "heading": {
+        const t = token as Tokens.Heading
+        const blockStart = cursor
+        walkInline(t.tokens || [])
+        appendText("\n\n") // séparation après le titre
+        const blockLength = cursor - blockStart
+        addSpan(blockLength, { headingLevel: t.depth as HeadingLevel, bold: true })
+        break
+      }
+
+      case "paragraph": {
+        const p = token as Tokens.Paragraph
+        walkInline(p.tokens || [])
+        appendText("\n\n")
+        break
+      }
+
+      case "list": {
+        const list = token as Tokens.List
+        const listStart = cursor
+
+        for (const item of list.items) {
+          // préfix bullet dans le texte, optionnel si tu comptes tout gérer par BulletFormat
+          appendText("• ")
+          walkInline(item.tokens || [])
+          appendText("\n")
+        }
+
+        appendText("\n")
+        const listLength = cursor - listStart
+        bullets.push({ start: listStart, length: listLength })
+        break
+      }
+
+      case "space": {
+        // blank line
+        appendText("\n")
+        break
+      }
+
+      default: {
+        // fallback brut
+        if ("text" in token && typeof (token as any).text === "string") {
+          appendText((token as any).text as string)
+          appendText("\n\n")
+        }
+      }
+    }
+  }
+
+  return { text, spans, bullets }
+}
+
+
+Points à noter:
+
+walkInline est récursif: un strong peut contenir du texte, de l’italic, etc
+
+Pour les headings, on ajoute un span avec headingLevel pour plus tard (changer la taille de police par exemple)
+
+Pour les listes, on:
+
+ajoute un • dans le texte (ce qui permet un fallback si BulletFormat marche mal)
+
+pousse un BulletBlock couvrant toute la plage de la liste
+
+5. Application dans la shape PowerPoint
+
+Une fois que tu as MarkdownFlattened, tu passes à PowerPoint.
+
+5.1. Récupérer la sélection cible
+
+Cas simple: l’utilisateur a sélectionné un bloc de texte dans une shape.
+
+async function applyMarkdownToSelection(md: string) {
+  const flattened = markdownToFlat(md)
+
+  await PowerPoint.run(async context => {
+    const textRange = context.presentation.getSelectedTextRange()
+    textRange.load("text")
+    await context.sync()
+
+    // Remplacer le texte existant par le plainText
+    textRange.text = flattened.text
+    await context.sync()
+
+    // 1) Appliquer les styles de police
+    for (const span of flattened.spans) {
+      const subRange = textRange.getSubstring(span.start, span.length)  // PowerPointApi 1.4+ :contentReference[oaicite:1]{index=1}
+      if (span.bold !== undefined) subRange.font.bold = span.bold
+      if (span.italic !== undefined) subRange.font.italic = span.italic
+
+      if (span.headingLevel) {
+        switch (span.headingLevel) {
+          case 1:
+            subRange.font.size = 28
+            break
+          case 2:
+            subRange.font.size = 24
+            break
+          case 3:
+            subRange.font.size = 20
+            break
+        }
+      }
+    }
+
+    // 2) Appliquer les bullets PowerPoint
+    for (const block of flattened.bullets) {
+      const listRange = textRange.getSubstring(block.start, block.length)
+      const pFormat = listRange.paragraphFormat      // ParagraphFormat :contentReference[oaicite:2]{index=2}
+      pFormat.bulletFormat.visible = true            // BulletFormat.visible :contentReference[oaicite:3]{index=3}
+    }
+
+    await context.sync()
+  })
+}
+
+
+Remarques:
+
+getSubstring(start, length) renvoie un nouveau TextRange sur lequel tu peux appliquer font et paragraphFormat 
+Microsoft Learn
++1
+
+paragraphFormat.bulletFormat.visible = true active les puces pour toutes les lignes couvertes par le range 
+Microsoft Learn
++1
+
+5.2. Variante "shape ciblée plutôt que sélection"
+
+Si tu préfères viser la shape sélectionnée plutôt que la sélection texte exacte:
+
+await PowerPoint.run(async context => {
+  const shapes = context.presentation.getSelectedShapes()
+  shapes.load("items")
+  await context.sync()
+
+  if (shapes.items.length !== 1) {
+    console.warn("Sélectionner exactement une shape avec du texte")
+    return
+  }
+
+  const shape = shapes.items[0]
+  const textFrame = shape.textFrame
+  textFrame.load("textRange,hasText")
+  await context.sync()
+
+  const textRange = textFrame.textRange
+  // Ensuite même logique: textRange.text = flattened.text; getSubstring; etc
+})
+
+6. Points d’attention Web vs Desktop
+
+Quelques points pour que ça tourne bien sur les deux:
+
+Vérifier le requirement set
+
+Tu utilises TextRange.getSubstring, font, paragraphFormat.bulletFormat.visible qui sont dans PowerPointApi 1.4 
+Microsoft Learn
++1
+
+Au démarrage de l’addin, tu peux tester
+
+Office.onReady(info => {
+  if (!Office.context.requirements.isSetSupported("PowerPointApi", "1.4")) {
+    // fallback: pas de formatage fin
+  }
+})
+
+
+Grouped shapes
+
+L’API ne sait pas accéder au texte des shapes groupées, et appelle ça un bug/limitation connue 
+GitHub
++1
+
+UX: afficher un message "dégrouper la shape pour appliquer le formatage"
+
+Bullets avancées
+
+BulletFormat.type et style existent mais sont en preview PowerPointApi BETA, donc à éviter en prod pour l’instant 
+Microsoft Learn
+
+Pour un MVP, se contenter de visible = true et éventuellement laisser les • dans le texte comme fallback
+
+7. Stratégie globale recommandée
+
+Pour ton projet assistant IA PPT:
+
+Côté Gemini
+
+Autoriser le Markdown mais rester sur un sous-ensemble simple (titres, gras, italic, listes)
+
+Option: forcer une structure bien clean pour éviter des cas bizarres (pas de tables, pas de nested lists complexes)
+
+Côté add-in
+
+Implémenter markdownToFlat comme ci-dessus
+
+Brancher applyMarkdownToSelection(markdownFromGemini) sur ton bouton "Insérer dans la shape"
+
+Gérer les erreurs: pas de texte sélectionné, plusieurs shapes, shape groupée, etc
+
+Évolution ultérieure
+
+Ajouter liens, listes numérotées (avec BulletFormat.type = "Numbered" quand API stable)
+
+Gérer des styles de titre mappés sur un thème PPT spécifique
+
+Si tu veux, au prochain message je peux t’écrire un fichier TypeScript complet markdownToPowerPoint.ts prêt à être intégré dans ton projet (avec exports propres et quelques helpers utilitaires)
